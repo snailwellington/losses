@@ -1,9 +1,17 @@
 library(neuralnet)
 
+pred_data.scaled <- pred_data %>% 
+  na.omit()
+
+index <- sample(1:nrow(pred_data.scaled),round(0.75*nrow(pred_data.scaled)))
+
+trainset <- pred_data.scaled[index,]
+testset <- pred_data.scaled[-index,]
+
 ## Defining neural net parameters
 time1 <- Sys.time()
-nn <- neuralnet::neuralnet(plan.losses ~ real.system_balance + real.ac_balance + real.production + real.consumption, 
-                           data=trainset,hidden=c(3,8,3), linear.output=FALSE, threshold=0.1)
+nn <- neuralnet::neuralnet(AMR ~ plan.consumption + ee.price, 
+                           data=trainset,hidden=c(2,4), linear.output=FALSE, threshold=0.1)
 
 print(paste0("Time it took to train - ",Sys.time()-time1))
 
@@ -13,14 +21,14 @@ plot(nn)
 
 
 #Test the resulting output
-temp_test <- subset(testset, select = c("real.system_balance", "real.ac_balance", "real.production" ,"real.consumption","real.production_renewable"))
+temp_test <- subset(testset, select = c("plan.consumption", "ee.price", "plan.production" ,"month","week","weekday","hour"))
 head(temp_test)
 
 ## predicting values
 nn.results <- neuralnet::compute(nn, temp_test)
 
 ## combining results
-results <- data.frame(actual = testset$plan.losses, prediction = nn.results$net.result) %>%
+results <- data.frame(actual = testset$AMR, prediction = nn.results$net.result) %>%
   mutate(row_id = row_number(),
          dev = (actual - prediction))
 
@@ -35,9 +43,7 @@ print(paste0("Model accuracy is: ",round(1-abs(mean(results$dev)),3),"%"))
 
 ggplot(results[(nrow(results)-100):nrow(results),])+
   geom_line(aes(x = row_id, y = actual), color = "blue")+
-  geom_line(aes(x = row_id, y = prediction), color = "red")+
-  scale_y_continuous(limits = c(0,1))
-
+  geom_line(aes(x = row_id, y = prediction), color = "red")
 
 
 ggplot(results)+
